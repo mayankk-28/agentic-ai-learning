@@ -1,3 +1,2 @@
-print("hello agentic ai" )I
-print("learning APIs for Agentic AI")
-
+print("hello agentic ai" ),
+print("learning APIs for Agentic AI"),
