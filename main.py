@@ -141,43 +141,110 @@ def ask_ai(question: str):
         "result": result
         }
 
-def simple_agent(question: str):
+def route_tool(question: str):
 
     q = question.lower()
 
     # Tool 1: User data
     if "user" in q:
-        user_data = get_user_data(1)
+        return "user"
 
-        if user_data:
-            if "name" in user_data:
-                return f"Hello {user_data['name']}, you asked: {question}"
+    if any(symbol in q for symbol in ["+", "-", "*", "/"]):
+        return "calculator"
 
-        return "User not found"
+    if "weather" in q or "temperature" in q:
+        return "weather"
+
+    return "none" 
+
+@app.get("/route")
+def test_route(question: str):
+    return{
+        "question": question,
+        "tool": route_tool(question)
+    }
+
+def calculator_tool(question: str):
+
+    parts = question.lower().replace("?", "").split()
+
+    if len(parts) != 3:
+        return "Please use format like: 10 + 5"
+
+    try:
+        a = float(parts[0])
+        operator = parts[1]
+        b = float(parts[2])
+    except ValueError:
+        return "Please use format like: 10 + 5"
+
+    if operator == "+":
+        return calculate(a, b, "add")
+
+    elif operator == "-":
+        return calculate(a, b, "subtract")
+
+    elif operator == "*":
+        return calculate(a, b, "multiply")
+
+    elif operator == "/":
+        return calculate(a, b, "divide")
+
+    return "Unsupported operator"
+
+def user_tool(question: str):
+
+    user_data = get_user_data(1)
+
+    if user_data and "name" in user_data:
+        return f"Hello {user_data['name']}, you asked: {question}"
+
+    return "User not found"
+
+def weather_tool(question: str):
+
+    url = "https://api.open-meteo.com/v1/forecast"
+
+    params = {
+        "latitude": 23.18,
+        "longitude": 75.78,
+        "current": "temperature_2m,wind_speed_10m"
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+
+    except requests.RequestException:
+        return {
+        "tool": "weather",
+        "error": "Unable to fetch weather data"
+    }
+
+    data = response.json()
+
+    return {
+        "tool": "weather",
+        "temperature": data["current"]["temperature_2m"],
+        "wind_speed": data["current"]["wind_speed_10m"]
+    }
+
+
+def simple_agent(question: str):
+
+    tool = route_tool(question)
+
+    # Tool 1: User
+    if tool == "user":
+        return user_tool(question)
 
     # Tool 2: Calculator
-    if len(q.split()) == 3:
+    if tool == "calculator":
+        return calculator_tool(question)
 
-        parts = q.split()
-
-        try:
-            a = float(parts[0])
-            operator = parts[1]
-            b = float(parts[2])
-        except ValueError:
-            return f"You asked: {question}"
-
-        if operator == "+":
-            return calculate(a, b, "add")
-
-        elif operator == "-":
-            return calculate(a, b, "subtract")
-
-        elif operator == "*":
-            return calculate(a, b, "multiply")
-
-        elif operator == "/":
-            return calculate(a, b, "divide")
+    # Tool 3: Weather
+    if tool == "weather":
+        return weather_tool(question)
 
     return f"You asked: {question}"
 
@@ -187,7 +254,7 @@ def weather():
     return get_weather(23.18, 75.78)
 
 
-def get_weather(latitude: float, longitude: float):
+def get_weather(latitude , longitude):
 
     response = requests.get(
         "https://api.open-meteo.com/v1/forecast",
