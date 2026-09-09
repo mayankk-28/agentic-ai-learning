@@ -198,25 +198,29 @@ def calculator_tool(question: str):
 
     parts = q.split()
 
-    # Find operator and numbers anywhere in the sentence
-    for i, part in enumerate(parts):
-        if part in ["+", "-", "*", "/"] and i > 0 and i < len(parts) - 1:
+    # Keep only numbers and calculator operators
+    expression_parts = []
+
+    for part in parts:
+        if part in ["+", "-", "*", "/"]:
+            expression_parts.append(part)
+        else:
             try:
-                a = float(parts[i - 1])
-                b = float(parts[i + 1])
+                float(part)
+                expression_parts.append(part)
             except ValueError:
                 continue
 
-            if part == "+":
-                return calculate(a, b, "add")
-            elif part == "-":
-                return calculate(a, b, "subtract")
-            elif part == "*":
-                return calculate(a, b, "multiply")
-            elif part == "/":
-                return calculate(a, b, "divide")
+    if not expression_parts:
+        return "I couldn't understand the calculation."
 
-    return "I couldn't understand the calculation."
+    expression = " ".join(expression_parts)
+
+    try:
+        result = eval(expression, {"__builtins__": None}, {})
+        return result
+    except (TypeError, ZeroDivisionError, SyntaxError):
+        return "I couldn't calculate that."
 
 def weather_tool(question: str):
 
