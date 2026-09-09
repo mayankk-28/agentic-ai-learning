@@ -163,6 +163,9 @@ def route_tool(question: str):
     if any(symbol in q for symbol in ["+", "-", "*", "/"]):
         return "calculator"
 
+    if "percent" in q or "%" in q:
+        return "calculator"
+
     # Tool 3: Weather
     if "weather" in q or "temperature" in q:
         return "weather"
@@ -179,6 +182,18 @@ def test_route(question: str):
 def calculator_tool(question: str):
 
     q = question.lower().replace("?", "")
+
+    # Percentage calculation
+    if "percent of" in q:
+        parts = q.split()
+
+        try:
+            percent = float(parts[parts.index("percent") - 1])
+            value = float(parts[parts.index("of") + 1])
+
+            return (percent / 100) * value
+        except (ValueError, IndexError):
+            return "I couldn't understand the percentage calculation."
 
     replacements = {
         "plus": "+",
