@@ -153,7 +153,7 @@ def route_tool(question: str):
     calculator_words = [
         "add", "plus",
         "subtract", "minus",
-        "multiply", "multiplied",
+        "multiply", "multiplied", "times",
         "divide", "divided"
     ]
 
@@ -188,9 +188,11 @@ def calculator_tool(question: str):
         "multiplied by": "*",
         "multiply by": "*",
         "multiply": "*",
+        "times": "*",
         "divided by": "/",
         "divide by": "/",
         "divide": "/"
+         
     }
 
     for word, symbol in replacements.items():
