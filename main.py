@@ -3,7 +3,22 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import OpenAI
 import requests
+import json
 import os
+ 
+try:
+    with open("memory.json", "r") as file:
+        memory = json.load(file)
+except (FileNotFoundError, json.JSONDecodeError):
+    memory = {}
+
+def save_memory(key: str, value: str):
+    memory[key] = value
+
+    with open("memory.json", "w") as file:
+        json.dump(memory, file, indent=4)
+
+    return f"Saved: {key} = {value}"
 
 # Load environment variables
 load_dotenv()
@@ -269,6 +284,32 @@ def weather_tool(question: str):
 
 
 def simple_agent(question: str):
+
+    # Memory: save user's name
+    q = question.lower()
+
+    if "my name is " in q:
+        name = question.lower().split("my name is ")[1].strip()
+        save_memory("name", name.title())
+        return f"Got it! I'll remember your name as {memory['name']}."
+
+    # Memory: retrieve user's name
+    if "what is my name" in q or "do you remember my name" in q:
+        if "name" in memory:
+            return f"Your name is {memory['name']}."
+        return "I don't know your name yet."
+
+    # Memory: save user's city
+    if "my city is " in q:
+        city = question.lower().split("my city is ")[1].strip()
+        save_memory("city", city.title())
+        return f"Got it! I'll remember your city as {memory['city']}."
+
+    # Memory: retrieve user's city
+    if "what is my city" in q or "do you remember my city" in q:
+        if "city" in memory:
+            return f"Your city is {memory['city']}."
+        return "I don't know your city yet."
 
     tool = route_tool(question)
 
