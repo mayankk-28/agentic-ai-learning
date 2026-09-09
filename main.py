@@ -153,7 +153,7 @@ def route_tool(question: str):
     calculator_words = [
         "add", "plus",
         "subtract", "minus",
-        "multiply", "multiplied",
+        "multiply", "multiplied", "times",
         "divide", "divided"
     ]
 
@@ -161,6 +161,9 @@ def route_tool(question: str):
         return "calculator"
 
     if any(symbol in q for symbol in ["+", "-", "*", "/"]):
+        return "calculator"
+
+    if "percent" in q or "%" in q:
         return "calculator"
 
     # Tool 3: Weather
@@ -180,6 +183,18 @@ def calculator_tool(question: str):
 
     q = question.lower().replace("?", "")
 
+    # Percentage calculation
+    if "percent of" in q:
+        parts = q.split()
+
+        try:
+            percent = float(parts[parts.index("percent") - 1])
+            value = float(parts[parts.index("of") + 1])
+
+            return (percent / 100) * value
+        except (ValueError, IndexError):
+            return "I couldn't understand the percentage calculation."
+
     replacements = {
         "plus": "+",
         "add": "+",
@@ -188,9 +203,11 @@ def calculator_tool(question: str):
         "multiplied by": "*",
         "multiply by": "*",
         "multiply": "*",
+        "times": "*",
         "divided by": "/",
         "divide by": "/",
         "divide": "/"
+         
     }
 
     for word, symbol in replacements.items():
