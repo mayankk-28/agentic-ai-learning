@@ -149,13 +149,25 @@ def route_tool(question: str):
     if "user" in q:
         return "user"
 
+    # Tool 2: Calculator
+    calculator_words = [
+        "add", "plus",
+        "subtract", "minus",
+        "multiply", "multiplied",
+        "divide", "divided"
+    ]
+
+    if any(word in q for word in calculator_words):
+        return "calculator"
+
     if any(symbol in q for symbol in ["+", "-", "*", "/"]):
         return "calculator"
 
+    # Tool 3: Weather
     if "weather" in q or "temperature" in q:
         return "weather"
 
-    return "none" 
+    return "none"
 
 @app.get("/route")
 def test_route(question: str):
@@ -166,40 +178,45 @@ def test_route(question: str):
 
 def calculator_tool(question: str):
 
-    parts = question.lower().replace("?", "").split()
+    q = question.lower().replace("?", "")
 
-    if len(parts) != 3:
-        return "Please use format like: 10 + 5"
+    replacements = {
+        "plus": "+",
+        "add": "+",
+        "minus": "-",
+        "subtract": "-",
+        "multiplied by": "*",
+        "multiply by": "*",
+        "multiply": "*",
+        "divided by": "/",
+        "divide by": "/",
+        "divide": "/"
+    }
 
-    try:
-        a = float(parts[0])
-        operator = parts[1]
-        b = float(parts[2])
-    except ValueError:
-        return "Please use format like: 10 + 5"
+    for word, symbol in replacements.items():
+        q = q.replace(word, f" {symbol} ")
 
-    if operator == "+":
-        return calculate(a, b, "add")
+    parts = q.split()
 
-    elif operator == "-":
-        return calculate(a, b, "subtract")
+    # Find operator and numbers anywhere in the sentence
+    for i, part in enumerate(parts):
+        if part in ["+", "-", "*", "/"] and i > 0 and i < len(parts) - 1:
+            try:
+                a = float(parts[i - 1])
+                b = float(parts[i + 1])
+            except ValueError:
+                continue
 
-    elif operator == "*":
-        return calculate(a, b, "multiply")
+            if part == "+":
+                return calculate(a, b, "add")
+            elif part == "-":
+                return calculate(a, b, "subtract")
+            elif part == "*":
+                return calculate(a, b, "multiply")
+            elif part == "/":
+                return calculate(a, b, "divide")
 
-    elif operator == "/":
-        return calculate(a, b, "divide")
-
-    return "Unsupported operator"
-
-def user_tool(question: str):
-
-    user_data = get_user_data(1)
-
-    if user_data and "name" in user_data:
-        return f"Hello {user_data['name']}, you asked: {question}"
-
-    return "User not found"
+    return "I couldn't understand the calculation."
 
 def weather_tool(question: str):
 
