@@ -4,4 +4,7 @@ __pycache__/
 *.pyc
 memory.json
 main_backup.py
+<<<<<<< HEAD
 main_local_backup.py
+=======
+>>>>>>> origin/main
