@@ -8,15 +8,20 @@ import os
 # Load environment variables
 load_dotenv()
 
-client = OpenAI()
+client = OpenAI(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
 
 app_name = os.getenv("APP_NAME", "Agentic AI")
-environment = os.getenv("ENVIRONMENT", "development")
-secret_key = os.getenv("MY_SECRET_KEY")
-                       
-print("App:", app_name)
-print("Environment:", environment)
 
+environment = os.getenv("ENVIRONMENT", "development")
+
+secret_key = os.getenv("MY_SECRET_KEY")
+
+print("App:", app_name)
+
+print("Environment:", environment)
 
 app = FastAPI()
 
@@ -112,6 +117,40 @@ def get_user_data(user_id: int):
         "website": data.get("website")
     }
 
+def user_tool(question: str):
+
+    words = question.split()
+
+    user_id = None
+
+    for word in words:
+        try:
+            number = int(word)
+            user_id = number
+            break
+        except ValueError:
+            continue
+
+    if user_id is None:
+        return {
+            "tool": "user",
+            "error": "Please provide a user ID."
+        }
+
+    data = get_user_data(user_id)
+
+    if data is None:
+        return {
+            "tool": "user",
+            "error": "User not found."
+        }
+
+    return {
+        "tool": "user",
+        "user_id": user_id,
+        "data": data
+    }
+
 def calculate(a: float, b: float, operation: str):
 
     if operation == "add":
@@ -141,36 +180,122 @@ def ask_ai(question: str):
         "result": result
         }
 
-def route_tool(question: str):
+def detect_intent(question: str):
 
     q = question.lower()
 
-    # Tool 1: User data
-    if "user" in q:
-        return "user"
-
-    # Tool 2: Calculator
-    calculator_words = [
-        "add", "plus",
-        "subtract", "minus",
-        "multiply", "multiplied", "times",
-        "divide", "divided"
+    # Weather intent
+    weather_phrases = [
+        "weather",
+        "temperature",
+        "how hot",
+        "how cold",
+        "mausam",
+        "garmi",
+        "thand",
+        "baarish",
+        "barish",
+        "rain"
     ]
 
-    if any(word in q for word in calculator_words):
-        return "calculator"
-
-    if any(symbol in q for symbol in ["+", "-", "*", "/"]):
-        return "calculator"
-
-    if "percent" in q or "%" in q:
-        return "calculator"
-
-    # Tool 3: Weather
-    if "weather" in q or "temperature" in q:
+    if any(phrase in q for phrase in weather_phrases):
         return "weather"
 
+    # Calculator intent
+    calculator_phrases = [
+        "add",
+        "plus",
+        "subtract",
+        "minus",
+        "multiply",
+        "times",
+        "divide",
+        "percent",
+        "calculate",
+        "kitna",
+        "jod",
+        "ghata",
+        "guna",
+        "bhaag"
+    ]
+
+    if any(phrase in q for phrase in calculator_phrases):
+        return "calculator"
+
+    # User intent
+    user_phrases = [
+        "user",
+        "user details",
+        "user information",
+        "user data",
+        "details of user"
+    ]
+
+    if any(phrase in q for phrase in user_phrases):
+        return "user"
+
     return "none"
+
+def detect_intents(question: str):
+
+    intents = []
+
+    q = question.lower()
+
+    weather_phrases = [
+        "weather",
+        "temperature",
+        "mausam",
+        "garmi",
+        "thand",
+        "baarish",
+        "barish",
+        "rain"
+    ]
+
+    calculator_phrases = [
+        "add",
+        "plus",
+        "subtract",
+        "minus",
+        "multiply",
+        "times",
+        "divide",
+        "percent",
+        "calculate",
+        "kitna",
+        "jod",
+        "ghata",
+        "guna",
+        "bhaag"
+    ]
+
+    user_phrases = [
+        "user",
+        "user details",
+        "user information",
+        "user data"
+    ]
+
+    if any(phrase in q for phrase in weather_phrases):
+        intents.append("weather")
+
+    if any(phrase in q for phrase in calculator_phrases):
+        intents.append("calculator")
+
+    if any(phrase in q for phrase in user_phrases):
+        intents.append("user")
+
+    if not intents:
+        intents.append("none")
+
+    return intents
+
+def route_tool(question: str):
+
+    intents = detect_intents(question)
+
+    return intents
 
 @app.get("/route")
 def test_route(question: str):
@@ -267,24 +392,105 @@ def weather_tool(question: str):
         "wind_speed": data["current"]["wind_speed_10m"]
     }
 
+def extract_calculator_query(question: str):
+    q = question.lower()
+
+    # User-related part ko remove karo
+    if "user" in q:
+        parts = q.split("user", 1)
+        q = parts[1]
+
+        # User ID ke baad remaining question lo
+        q = q.split("details", 1)[-1]
+
+    calculator_words = [
+        "add",
+        "plus",
+        "subtract",
+        "minus",
+        "multiply",
+        "times",
+        "divide",
+        "percent",
+        "calculate",
+        "kitna",
+        "jod",
+        "ghata",
+        "guna",
+        "bhaag"
+    ]
+
+    words = q.split()
+    relevant_words = []
+
+    for word in words:
+        if any(calc_word in word for calc_word in calculator_words):
+            relevant_words.append(word)
+        else:
+            try:
+                float(word)
+                relevant_words.append(word)
+            except ValueError:
+                pass
+
+    return " ".join(relevant_words)
+
+@app.get("/test-extract")
+def test_extract(question: str):
+    return {
+        "question": question,
+        "extracted": extract_calculator_query(question)
+    }
+
+def llm_test(question: str):
+    response = client.chat.completions.create(
+        model="gemini-3.8-flash",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Classify the user question into exactly one category: "
+                    "weather, calculator, user, none. "
+                    "Return only the category name."
+                ),
+            },
+            {
+                "role": "user",
+                "content": question,
+            },
+        ],
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+@app.get("/llm-test")
+def test_llm(question: str):
+    return {
+        "question": question,
+        "intent": llm_test(question)
+    }
 
 def simple_agent(question: str):
 
-    tool = route_tool(question)
+    intents = detect_intents(question)
 
-    # Tool 1: User
-    if tool == "user":
-        return user_tool(question)
+    results = {}
 
-    # Tool 2: Calculator
-    if tool == "calculator":
-        return calculator_tool(question)
+    if "user" in intents:
+        results["user"] = user_tool(question)
 
-    # Tool 3: Weather
-    if tool == "weather":
-        return weather_tool(question)
+    if "calculator" in intents:
+        calculator_query = extract_calculator_query(question)
+        results["calculator"] = calculator_tool(calculator_query)
 
-    return f"You asked: {question}"
+    if "weather" in intents:
+        results["weather"] = weather_tool(question)
+
+    if not results:
+        results["message"] = f"You asked: {question}"
+
+    return results
 
 
 @app.get("/weather")
