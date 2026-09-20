@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 memory.json
 main_backup.py
+main_local_backup.py
