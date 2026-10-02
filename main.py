@@ -23,7 +23,10 @@ def save_memory(key: str, value: str):
 # Load environment variables
 load_dotenv()
 
-client = OpenAI()
+client = OpenAI(
+    api_key=os.getenv("GEMINI_API_KEY"),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+)
 
 app_name = os.getenv("APP_NAME", "Agentic AI")
 environment = os.getenv("ENVIRONMENT", "development")
@@ -127,34 +130,78 @@ def get_user_data(user_id: int):
         "website": data.get("website")
     }
 
-def calculate(a: float, b: float, operation: str):
+def llm_test(question: str):
+    response = client.chat.completions.create(
+        model="gemini-3.8-flash",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Classify the user question into exactly one category: "
+                    "weather, calculator, user, none. "
+                    "Return only the category name."
+                ),
+            },
+            {
+                "role": "user",
+                "content": question,
+            },
+        ],
+    )
 
-    if operation == "add":
-        return a + b
+    return response.choices[0].message.content.strip()
 
-    elif operation == "subtract":
-        return a - b
 
-    elif operation == "multiply":
-        return a * b
-
-    elif operation == "divide":
-        if b == 0:
-            return "Cannot divide by zero"
-        return a / b
-
-    return "Unknown operation"
-
- 
-@app.get("/ask")
-def ask_ai(question: str):
- 
-    result = simple_agent(question)
-
-    return{
+@app.get("/llm-test")
+def test_llm(question: str):
+    return {
         "question": question,
-        "result": result
-        }
+        "intent": llm_test(question)
+    }
+
+def llm_detect_intents(question: str):
+    try:
+        response = client.chat.completions.create(
+            model="gemini-3.8-flash",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an intent classifier for an AI agent. "
+                        "Classify the user's question into one or more of these intents: "
+                        "weather, calculator, user, none. "
+                        "Return ONLY a JSON array. "
+                        'Examples: ["weather"] '
+                        '["calculator"] '
+                        '["calculator", "weather"] '
+                        '["user"] '
+                        '["none"]'
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": question,
+                },
+            ],
+        )
+
+        content = response.choices[0].message.content.strip()
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            return ["none"]
+
+    except Exception as e:
+        print("Gemini unavailable, using fallback:", e)
+
+        # Fallback to existing keyword-based routing
+        tool = route_tool(question)
+
+        if tool == "none":
+            return ["none"]
+
+        return [tool]
 
 def route_tool(question: str):
 
@@ -194,66 +241,136 @@ def test_route(question: str):
         "tool": route_tool(question)
     }
 
-def calculator_tool(question: str):
+def calculator_plan(question: str):
+    try:
+        response = client.chat.completions.create(
+            model="gemini-3.8-flash",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a calculator planning assistant. "
+                        "Convert the user's calculation request into a JSON array "
+                        "of sequential operations. "
+                        "Allowed operations: add, subtract, multiply, divide. "
+                        "Return ONLY valid JSON. "
+                        'Example: for "20 times 5 then add 50", return '
+                        '[{"operation":"multiply","a":20,"b":5},'
+                        '{"operation":"add","value":50}]'
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": question,
+                },
+            ],
+        )
 
-    q = question.lower().replace("?", "")
-
-    # Percentage calculation
-    if "percent of" in q:
-        parts = q.split()
+        content = response.choices[0].message.content.strip()
 
         try:
-            percent = float(parts[parts.index("percent") - 1])
-            value = float(parts[parts.index("of") + 1])
+            return json.loads(content)
+        except json.JSONDecodeError:
+            return None
 
-            return (percent / 100) * value
-        except (ValueError, IndexError):
-            return "I couldn't understand the percentage calculation."
-
-    replacements = {
-        "plus": "+",
-        "add": "+",
-        "minus": "-",
-        "subtract": "-",
-        "multiplied by": "*",
-        "multiply by": "*",
-        "multiply": "*",
-        "times": "*",
-        "divided by": "/",
-        "divide by": "/",
-        "divide": "/"
-         
-    }
-
-    for word, symbol in replacements.items():
-        q = q.replace(word, f" {symbol} ")
-
-    parts = q.split()
-
-    # Keep only numbers and calculator operators
-    expression_parts = []
-
-    for part in parts:
-        if part in ["+", "-", "*", "/"]:
-            expression_parts.append(part)
-        else:
-            try:
-                float(part)
-                expression_parts.append(part)
-            except ValueError:
-                continue
-
-    if not expression_parts:
+    except Exception as e:
+        print("Calculator planning failed:", e)
+        return None
+def execute_calculation_plan(plan):
+    if not plan:
         return "I couldn't understand the calculation."
 
-    expression = " ".join(expression_parts)
+    result = None
 
-    try:
-        result = eval(expression, {"__builtins__": None}, {})
-        return result
-    except (TypeError, ZeroDivisionError, SyntaxError):
-        return "I couldn't calculate that."
+    for step in plan:
+        operation = step.get("operation")
 
+        if operation == "multiply":
+            if result is None:
+                result = step["a"] * step["b"]
+            else:
+                result = result * step["b"]
+
+        elif operation == "add":
+            if result is None:
+                result = step.get("a", 0) + step.get("b", 0)
+            else:
+                result = result + step["value"]
+
+        elif operation == "subtract":
+            if result is None:
+                result = step.get("a", 0) - step.get("b", 0)
+            else:
+                result = result - step["value"]
+
+        elif operation == "divide":
+            if result is None:
+                result = step["a"] / step["b"]
+            else:
+                result = result / step["value"]
+
+        else:
+            return "Unknown calculation operation."
+
+    return result
+
+
+def calculator_tool(question: str):
+    plan = calculator_plan(question)
+
+    if plan:
+        return execute_calculation_plan(plan)
+
+# Fallback when Gemini is unavailable
+
+    q = question.lower()
+
+    import re
+
+    numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", q)]
+
+    # Need at least two numbers for a calculation
+    if len(numbers) < 2:
+        return "I couldn't understand the calculation."
+
+    result = numbers[0]
+
+    # First operation
+    if "minus" in q or "subtract" in q:
+        result = result - numbers[1]
+
+    elif "plus" in q or "add" in q:
+        result = result + numbers[1]
+
+    elif "multiply" in q or "times" in q:
+        result = result * numbers[1]
+
+    elif "divide" in q or "divided by" in q:
+        if numbers[1] == 0:
+            return "Cannot divide by zero."
+        result = result / numbers[1]
+
+    else:
+        return "I couldn't understand the calculation."
+
+    # Second operation for 3-number calculations
+    if len(numbers) >= 3:
+
+        if "multiply" in q or "times" in q:
+            result = result * numbers[2]
+
+        elif "plus" in q or "add" in q:
+            result = result + numbers[2]
+
+        elif "minus" in q or "subtract" in q:
+            result = result - numbers[2]
+
+        elif "divide" in q or "divided by" in q:
+            if numbers[2] == 0:
+                return "Cannot divide by zero."
+            result = result / numbers[2]
+
+    return result
 def weather_tool(question: str):
 
     url = "https://api.open-meteo.com/v1/forecast"
@@ -282,6 +399,14 @@ def weather_tool(question: str):
         "wind_speed": data["current"]["wind_speed_10m"]
     }
 
+@app.get("/ask")
+def ask_ai(question: str):
+    result = simple_agent(question)
+
+    return {
+        "question": question,
+        "result": result
+    }
 
 def simple_agent(question: str):
 
@@ -311,21 +436,28 @@ def simple_agent(question: str):
             return f"Your city is {memory['city']}."
         return "I don't know your city yet."
 
-    tool = route_tool(question)
+    # Gemini intent detection
+    intents = llm_detect_intents(question)
 
-    # Tool 1: User
-    if tool == "user":
-        return user_tool(question)
+    results = {}
 
-    # Tool 2: Calculator
-    if tool == "calculator":
-        return calculator_tool(question)
+    # User tool
+    if "user" in intents:
+        results["user"] = user_tool(question)
 
-    # Tool 3: Weather
-    if tool == "weather":
-        return weather_tool(question)
+    # Calculator tool
+    if "calculator" in intents:
+        results["calculator"] = calculator_tool(question)
 
-    return f"You asked: {question}"
+    # Weather tool
+    if "weather" in intents:
+        results["weather"] = weather_tool(question)
+
+    # No matching intent
+    if not results:
+        results["message"] = f"You asked: {question}"
+
+    return results
 
 
 @app.get("/weather")
@@ -353,4 +485,3 @@ def get_weather(latitude , longitude):
         "temperature": data["current"]["temperature_2m"],
         "wind_speed": data["current"]["wind_speed_10m"]
     }
-    
