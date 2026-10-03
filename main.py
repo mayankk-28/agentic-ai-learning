@@ -159,6 +159,44 @@ def test_llm(question: str):
         "intent": llm_test(question)
     }
 
+def route_tool(question: str):
+
+    q = question.lower()
+
+    tools = []
+
+    # Tool 1: User data
+    if "user" in q:
+        tools.append("user")
+
+    # Tool 2: Calculator
+    calculator_words = [
+        "add", "plus",
+        "subtract", "minus",
+        "multiply", "multiplied", "times",
+        "divide", "divided"
+    ]
+
+    if any(word in q for word in calculator_words):
+        tools.append("calculator")
+
+    if any(symbol in q for symbol in ["+", "-", "*", "/"]):
+        if "calculator" not in tools:
+            tools.append("calculator")
+
+    if "percent" in q or "%" in q:
+        if "calculator" not in tools:
+            tools.append("calculator")
+
+    # Tool 3: Weather
+    if "weather" in q or "temperature" in q:
+        tools.append("weather")
+
+    if not tools:
+        return "none"
+
+    return tools
+
 def llm_detect_intents(question: str):
     try:
         response = client.chat.completions.create(
@@ -188,51 +226,32 @@ def llm_detect_intents(question: str):
         content = response.choices[0].message.content.strip()
 
         try:
-            return json.loads(content)
+            intents = json.loads(content)
+
+            if not isinstance(intents, list):
+                intents = ["none"]
+
         except json.JSONDecodeError:
-            return ["none"]
+            intents = ["none"]
+
+        # If Gemini says none, check keyword routing as backup
+        if intents == ["none"]:
+            fallback_tools = route_tool(question)
+
+            if fallback_tools != "none":
+                return fallback_tools
+
+        return intents
 
     except Exception as e:
         print("Gemini unavailable, using fallback:", e)
 
-        # Fallback to existing keyword-based routing
-        tool = route_tool(question)
+        tools = route_tool(question)
 
-        if tool == "none":
+        if tools == "none":
             return ["none"]
 
-        return [tool]
-
-def route_tool(question: str):
-
-    q = question.lower()
-
-    # Tool 1: User data
-    if "user" in q:
-        return "user"
-
-    # Tool 2: Calculator
-    calculator_words = [
-        "add", "plus",
-        "subtract", "minus",
-        "multiply", "multiplied", "times",
-        "divide", "divided"
-    ]
-
-    if any(word in q for word in calculator_words):
-        return "calculator"
-
-    if any(symbol in q for symbol in ["+", "-", "*", "/"]):
-        return "calculator"
-
-    if "percent" in q or "%" in q:
-        return "calculator"
-
-    # Tool 3: Weather
-    if "weather" in q or "temperature" in q:
-        return "weather"
-
-    return "none"
+        return tools
 
 @app.get("/route")
 def test_route(question: str):
