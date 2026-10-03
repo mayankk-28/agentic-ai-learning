@@ -253,10 +253,10 @@ def calculator_plan(question: str):
                         "Convert the user's calculation request into a JSON array "
                         "of sequential operations. "
                         "Allowed operations: add, subtract, multiply, divide. "
-                        "Return ONLY valid JSON. "
-                        'Example: for "20 times 5 then add 50", return '
-                        '[{"operation":"multiply","a":20,"b":5},'
-                        '{"operation":"add","value":50}]'
+                        "Every operation must contain operation, a and b. "
+                        "For later operations, use the previous result as a "
+                        "and the new number as b. "
+                        "Return ONLY valid JSON."
                     ),
                 },
                 {
@@ -267,75 +267,79 @@ def calculator_plan(question: str):
         )
 
         content = response.choices[0].message.content.strip()
+        plan = json.loads(content)
 
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
+        if not isinstance(plan, list):
             return None
+
+        return plan
 
     except Exception as e:
         print("Calculator planning failed:", e)
         return None
+
+
 def execute_calculation_plan(plan):
     if not plan:
-        return "I couldn't understand the calculation."
+        return None
 
     result = None
 
-    for step in plan:
-        operation = step.get("operation")
+    try:
+        for step in plan:
+            operation = step.get("operation")
 
-        if operation == "multiply":
             if result is None:
-                result = step["a"] * step["b"]
+                a = step["a"]
+                b = step["b"]
             else:
-                result = result * step["b"]
+                a = result
+                b = step["b"]
 
-        elif operation == "add":
-            if result is None:
-                result = step.get("a", 0) + step.get("b", 0)
+            if operation == "multiply":
+                result = a * b
+
+            elif operation == "add":
+                result = a + b
+
+            elif operation == "subtract":
+                result = a - b
+
+            elif operation == "divide":
+                if b == 0:
+                    return "Cannot divide by zero."
+                result = a / b
+
             else:
-                result = result + step["value"]
+                return None
 
-        elif operation == "subtract":
-            if result is None:
-                result = step.get("a", 0) - step.get("b", 0)
-            else:
-                result = result - step["value"]
+        return result
 
-        elif operation == "divide":
-            if result is None:
-                result = step["a"] / step["b"]
-            else:
-                result = result / step["value"]
-
-        else:
-            return "Unknown calculation operation."
-
-    return result
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def calculator_tool(question: str):
     plan = calculator_plan(question)
 
     if plan:
-        return execute_calculation_plan(plan)
+        result = execute_calculation_plan(plan)
 
-# Fallback when Gemini is unavailable
+        if result is not None:
+            return result
 
+    # Fallback when Gemini is unavailable
     q = question.lower()
 
     import re
 
     numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", q)]
 
-    # Need at least two numbers for a calculation
     if len(numbers) < 2:
         return "I couldn't understand the calculation."
 
     result = numbers[0]
 
-    # First operation
     if "minus" in q or "subtract" in q:
         result = result - numbers[1]
 
@@ -353,7 +357,6 @@ def calculator_tool(question: str):
     else:
         return "I couldn't understand the calculation."
 
-    # Second operation for 3-number calculations
     if len(numbers) >= 3:
 
         if "multiply" in q or "times" in q:
@@ -371,6 +374,7 @@ def calculator_tool(question: str):
             result = result / numbers[2]
 
     return result
+
 def weather_tool(question: str):
 
     url = "https://api.open-meteo.com/v1/forecast"
