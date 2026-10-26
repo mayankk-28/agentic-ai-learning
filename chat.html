@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#c8eee8">
+  <title>ASK — AI Assistant</title>
+  <style>
+:root {
+  color-scheme: light;
+  --ink: #262622;
+  --muted: #77746C;
+  --white: #F1EEE6;
+  --line: #D8D1C4;
+  --coral: #A87948;
+  --coral-dark: #896139;
+  --mint: #E9E4D9;
+  --aqua: #F0EDE6;
+  --yellow: #E9DDC5;
+  --peach: #E8D7C6;
+  --green: #DCE2D7;
+  --shadow: 0 12px 34px rgba(42, 36, 27, 0.10);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink);
+  font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #25241F;
+}
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(239,81,71,.35); outline-offset: 2px; }
+.app-shell {
+  display: grid; grid-template-columns: 224px minmax(0, 1fr) 252px;
+  gap: 0; width: min(1600px, 100%); min-height: 100vh; margin: 0 auto;
+  padding: 14px; background: #f1f3ee;
+}
+.sidebar, .history-panel { background: var(--white); min-width: 0; }
+.sidebar {
+  display: flex; flex-direction: column; padding: 24px 16px 16px;
+  border-radius: 22px 0 0 22px; border: 1px solid #e7e9e2;
+}
+.brand { display: flex; align-items: center; gap: 9px; padding: 0 8px; margin-bottom: 32px; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; color: white; background: var(--coral); font-size: 20px; font-weight: 800; }
+.brand-name { font-size: 27px; line-height: 1; letter-spacing: -1.5px; font-weight: 750; }
+.brand-name span { color: var(--coral); }
+.nav-label, .section-kicker { color: #85908e; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; }
+.nav-label { padding: 0 10px; margin: 0 0 10px; }
+.nav-list { display: grid; gap: 7px; }
+.nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 13px; color: #485454; background: transparent; text-align: left; transition: .18s ease; }
+.nav-button:hover { background: #f5f7f1; }
+.nav-button.active { color: white; background: var(--coral); box-shadow: 0 6px 14px rgba(239,81,71,.18); }
+.nav-icon { display: inline-grid; place-items: center; width: 22px; font-size: 17px; }
+.sidebar-spacer { flex: 1; min-height: 24px; }
+.profile { display: flex; align-items: center; gap: 10px; padding: 13px 8px 16px; border-top: 1px solid #edf0e8; color: #475251; }
+.profile-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #f7d9b5; font-weight: 800; }
+.profile small { display: block; color: #89918e; font-size: 11px; }
+.pro-card { padding: 17px 15px; border-radius: 17px; background: linear-gradient(135deg, var(--mint), var(--yellow) 62%, var(--peach)); }
+.pro-card h3 { margin: 0 0 7px; font: 700 18px/1.15 Georgia, serif; }
+.pro-card p { margin: 0 0 13px; font-size: 12px; color: #485552; }
+.pro-card .local-badge { display: inline-flex; padding: 5px 8px; border-radius: 999px; background: rgba(255,255,255,.65); font-size: 10px; font-weight: 750; }
+
+.chat-panel { display: flex; flex-direction: column; min-width: 0; min-height: calc(100vh - 28px); overflow: hidden; background: linear-gradient(140deg, var(--mint) 0%, var(--aqua) 28%, var(--yellow) 67%, var(--peach) 100%); }
+.chat-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; min-height: 76px; }
+.chat-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mini-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 13px; color: white; background: var(--coral); font-size: 20px; font-weight: 800; }
+.chat-title { font-size: 16px; font-weight: 800; }
+.chat-subtitle { color: #687b78; font-size: 11px; margin-top: 2px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.search-wrap { display: flex; align-items: center; gap: 8px; width: clamp(125px, 22vw, 220px); padding: 9px 12px; border-radius: 999px; background: rgba(255,255,255,.63); border: 1px solid rgba(255,255,255,.7); }
+.search-wrap input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); }
+.search-wrap input::placeholder { color: #687a78; }
+.icon-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.7); border-radius: 50%; background: rgba(255,255,255,.55); color: #485957; font-size: 17px; }
+.icon-btn:hover { background: white; }
+.mobile-menu { display: none; }
+.messages { flex: 1; min-height: 260px; overflow-y: auto; padding: 8px clamp(16px, 3vw, 34px) 20px; scroll-behavior: smooth; }
+.welcome-card { max-width: 680px; margin: 12px auto 24px; padding: 24px; border: 1px solid rgba(255,255,255,.8); border-radius: 22px; background: rgba(255,255,255,.86); box-shadow: var(--shadow); }
+.welcome-card .section-kicker { margin-bottom: 8px; color: #718b86; }
+.welcome-card h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); line-height: 1.13; letter-spacing: -1.2px; }
+.welcome-card p { max-width: 530px; margin: 10px 0 18px; color: #63716f; }
+.prompt-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid #e7ebe2; border-radius: 999px; padding: 9px 12px; color: #485451; background: #fffefa; }
+.chip:hover { border-color: #f2a39a; background: #fff7f3; }
+.message-row { display: flex; align-items: flex-start; gap: 10px; margin: 16px auto; max-width: 760px; animation: appear .18s ease-out; }
+.message-row.user-row { justify-content: flex-end; }
+.avatar { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; color: #fff; background: #829e98; font-size: 12px; font-weight: 800; }
+.user-row .avatar { background: #e6a58c; color: #5a3026; order: 2; }
+.message-content { min-width: 0; max-width: min(82%, 620px); }
+.bubble { padding: 13px 16px; border: 1px solid rgba(230,234,224,.95); border-radius: 17px; border-top-left-radius: 5px; background: rgba(255,255,255,.95); color: #293432; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; box-shadow: 0 5px 16px rgba(55,82,76,.05); }
+.user-row .bubble { border: 0; border-radius: 17px 5px 17px 17px; background: var(--coral); color: white; }
+.message-meta { margin: 5px 4px 0; color: #71817d; font-size: 10px; }
+.user-row .message-meta { text-align: right; }
+.typing-dots { display: inline-flex; gap: 4px; padding: 4px 0; }
+.typing-dots span { width: 6px; height: 6px; border-radius: 50%; background: #9aa9a3; animation: pulse .65s infinite alternate; }
+.typing-dots span:nth-child(2) { animation-delay: .15s; }
+.typing-dots span:nth-child(3) { animation-delay: .3s; }
+.composer-area { padding: 12px clamp(14px, 3vw, 32px) 15px; }
+.composer { display: flex; align-items: center; gap: 9px; max-width: 800px; margin: 0 auto; padding: 7px 8px 7px 17px; border: 1px solid rgba(255,255,255,.95); border-radius: 18px; background: rgba(255,255,255,.96); box-shadow: 0 8px 24px rgba(60,80,73,.1); }
+.composer input { flex: 1; min-width: 0; padding: 11px 0; border: 0; outline: 0; background: transparent; color: var(--ink); }
+.composer input::placeholder { color: #929b96; }
+.send-btn { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--coral); color: white; font-size: 20px; }
+.send-btn:hover { background: var(--coral-dark); transform: translateY(-1px); }
+.send-btn:disabled { opacity: .55; cursor: wait; transform: none; }
+.composer-note { max-width: 800px; margin: 8px auto 0; text-align: center; color: #6e817b; font-size: 10px; }
+
+.history-panel { display: flex; flex-direction: column; min-width: 0; margin-left: 12px; padding: 20px 14px; border: 1px solid #e7e9e2; border-radius: 20px; background: rgba(255,255,255,.84); }
+.history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 15px; }
+.history-heading h2 { margin: 0; font: 700 24px/1.1 Georgia, serif; }
+.history-count { color: #6e7b75; font-size: 11px; }
+.history-search { width: 100%; margin-bottom: 13px; padding: 9px 11px; border: 1px solid #e6e9e0; border-radius: 11px; background: #fbfcf8; outline: 0; }
+.history-list { display: grid; gap: 8px; overflow-y: auto; }
+.history-item { width: 100%; padding: 12px; border: 1px solid transparent; border-radius: 13px; text-align: left; background: rgba(255,255,255,.65); color: #2f3936; }
+.history-item:hover, .history-item.active { border-color: #e9d8b2; background: linear-gradient(120deg, rgba(217,242,224,.85), rgba(255,241,182,.8)); }
+.history-title { display: block; overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.history-preview { display: -webkit-box; margin-top: 5px; overflow: hidden; color: #65716d; font-size: 11px; line-height: 1.45; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.history-date { display: block; margin-top: 8px; color: #8b9690; font-size: 10px; }
+.history-empty { padding: 18px 10px; color: #82908a; text-align: center; font-size: 12px; }
+.history-footer { margin-top: auto; padding-top: 14px; color: #7b8780; font-size: 10px; line-height: 1.6; }
+.clear-history { margin-top: 8px; padding: 7px 10px; border: 1px solid #e7e9e2; border-radius: 9px; background: white; color: #68736e; font-size: 11px; }
+.clear-history:hover { border-color: #efaaa2; color: #b93c35; }
+
+.fun-view { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 10px clamp(16px, 3vw, 32px) 24px; }
+.fun-view.active { display: block; }
+.fun-hero { max-width: 800px; margin: 8px auto 18px; padding: 23px; border-radius: 22px; background: rgba(255,255,255,.87); border: 1px solid rgba(255,255,255,.95); box-shadow: var(--shadow); }
+.fun-hero h1 { margin: 5px 0 8px; font-size: clamp(25px, 3vw, 32px); letter-spacing: -1px; }
+.fun-hero p { margin: 0; color: #697772; }
+.fun-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 800px; margin: 0 auto; }
+.fun-card { display: flex; align-items: flex-start; gap: 12px; min-height: 116px; padding: 17px; border: 1px solid rgba(255,255,255,.9); border-radius: 18px; text-align: left; background: rgba(255,255,255,.87); box-shadow: 0 5px 18px rgba(60,80,73,.05); transition: transform .18s, box-shadow .18s; }
+.fun-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.fun-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 14px; font-size: 21px; background: #e0f4e4; }
+.fun-card:nth-child(2) .fun-icon { background: #fff0c2; }
+.fun-card:nth-child(3) .fun-icon { background: #d8f1f5; }
+.fun-card:nth-child(4) .fun-icon { background: #fbe0d1; }
+.fun-card:nth-child(5) .fun-icon { background: #e8e2ff; }
+.fun-card:nth-child(6) .fun-icon { background: #dff0e7; }
+.fun-card:nth-child(7) .fun-icon { background: #f9e5e0; }
+.fun-card strong { display: block; margin: 1px 0 4px; font-size: 14px; }
+.fun-card small { display: block; color: #697772; font-size: 11px; line-height: 1.5; }
+.quiz-card { max-width: 800px; margin: 16px auto 0; padding: 20px; border-radius: 18px; background: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.95); }
+.quiz-card h3 { margin: 0 0 13px; }
+.quiz-options { display: grid; gap: 8px; }
+.quiz-option { padding: 11px 13px; border: 1px solid #e3e9df; border-radius: 12px; background: #fffefa; color: #394541; text-align: left; }
+.quiz-option:hover { border-color: #e9a39b; }
+.quiz-option.correct { border-color: #70b884; background: #e7f7e9; }
+.quiz-option.incorrect { border-color: #e59a8f; background: #fff0ed; }
+.quiz-feedback { margin-top: 12px; font-weight: 700; color: #52635b; }
+.view-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.view-heading h1 { margin: 0; font-size: 22px; }
+.view-heading button { margin-left: auto; }
+.toast { position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%); padding: 10px 14px; border-radius: 999px; background: #293b35; color: white; font-size: 12px; box-shadow: var(--shadow); }
+.hidden { display: none !important; }
+@keyframes appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { from { opacity: .35; transform: translateY(0); } to { opacity: 1; transform: translateY(-3px); } }
+@media (min-width: 1500px) { .app-shell { padding: 24px; } .chat-panel { min-height: calc(100vh - 48px); } }
+@media (max-width: 1120px) {
+  .app-shell { grid-template-columns: 190px minmax(0,1fr); }
+  .history-panel { display: none; }
+  .history-panel.mobile-open {
+    display: flex; position: fixed; z-index: 25; top: 8px; right: 8px; bottom: 8px;
+    width: min(320px, calc(100vw - 16px)); margin: 0;
+    box-shadow: 0 15px 55px rgba(28,45,41,.25);
+  }
+  .history-panel.mobile-open .history-close {
+    display: flex; align-items: center; justify-content: center; position: absolute;
+    top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
+    border: 1px solid #e8e3d8; border-radius: 50%; background: #f8f6f0;
+    color: #374741; font-size: 18px; line-height: 1; cursor: pointer; z-index: 30;
+  }
+  .history-panel.mobile-open .history-heading { padding-right: 32px; }
+  .chat-panel { border-radius: 0 20px 20px 0; }
+  .sidebar { border-radius: 20px 0 0 20px; }
+}
+.app-shell.history-collapsed { grid-template-columns: 224px minmax(0,1fr); }
+.app-shell.history-collapsed #history-panel { display: none !important; }
+@media (max-width: 700px) {
+  body { background: white; }
+  .app-shell { display: block; min-height: 100dvh; padding: 0; }
+  .sidebar { display: none; position: absolute; z-index: 20; inset: 8px auto 8px 8px; width: min(280px, calc(100vw - 32px)); border-radius: 20px; box-shadow: 0 15px 55px rgba(28,45,41,.25); }
+  .sidebar.open { display: flex; }
+  .history-panel.mobile-open { display: flex; position: absolute; z-index: 25; top: 8px; right: 8px; bottom: 8px; width: min(320px, calc(100vw - 16px)); margin: 0; box-shadow: 0 15px 55px rgba(28,45,41,.25); }
+  .chat-panel { min-height: 100dvh; border-radius: 0; }
+  .chat-header { min-height: 67px; padding: 12px 13px; }
+  .mobile-menu { display: inline-grid; }
+  .search-wrap { display: none; }
+  .messages { padding: 7px 12px 16px; }
+  .welcome-card { margin: 9px 0 17px; padding: 19px; }
+  .message-row { gap: 7px; margin: 13px 0; }
+  .avatar { width: 29px; height: 29px; }
+  .message-content { max-width: 88%; }
+  .bubble { padding: 11px 13px; }
+  .composer-area { padding: 9px 10px 12px; }
+  .composer { gap: 6px; padding-left: 13px; }
+  .composer-note { font-size: 9px; }
+  .fun-view { padding: 8px 12px 20px; }
+  .fun-hero { padding: 19px; }
+  .fun-grid { gap: 9px; }
+  .fun-card { min-height: 132px; padding: 12px; display: block; }
+  .fun-icon { margin-bottom: 9px; width: 36px; height: 36px; }
+  .fun-card strong { font-size: 13px; }
+}
+@media (max-width: 360px) { .fun-grid { grid-template-columns: 1fr; } .header-actions { gap: 4px; } .icon-btn { width: 34px; height: 34px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* ASK: softer warm off-white theme */
+:root { --white: #f8f6f0; }
+body { background: #f1efe8; }
+.sidebar, .history-panel { background: #f8f6f0; }
+.welcome-card, .fun-hero, .fun-card, .quiz-card {
+  background: rgba(248, 246, 240, 0.94); border-color: #e8e3d8;
+}
+.bubble { background: #f8f6f0; border-color: #e8e3d8; }
+.composer { background: #f8f6f0; border-color: #e8e3d8; }
+.search-wrap { background: rgba(248, 246, 240, 0.85); border-color: #e8e3d8; }
+
+/* History button fix for medium and mobile screens */
+@media (max-width: 1120px) {
+  .history-panel.mobile-open {
+    display: flex; position: absolute; z-index: 25; top: 8px; right: 8px; bottom: 8px;
+    width: min(320px, calc(100vw - 16px)); margin: 0;
+    box-shadow: 0 15px 55px rgba(28, 45, 41, 0.25);
+  }
+}
+.history-close { display: none; }
+@media (max-width: 1120px) {
+  .history-panel.mobile-open .history-close {
+    display: flex; align-items: center; justify-content: center; position: absolute;
+    top: 10px; right: 10px; width: 26px; height: 26px; padding: 0;
+    border: 1px solid #e8e3d8; border-radius: 50%; background: #f8f6f0;
+    color: #374741; font-size: 18px; line-height: 1; cursor: pointer; z-index: 30;
+  }
+  .history-heading { padding-right: 32px; }
+}
+
+/* ASK Light / Dark Mode */
+body, .app-shell, .sidebar, .history-panel, .chat-panel {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+body[data-theme="dark"] {
+  --ink: #F0EDE6; --muted: #B8B2A6; --white: #292923; --line: #45443B;
+  background: #1B1B18; color: var(--ink);
+}
+body[data-theme="dark"] .app-shell { background: #1B1B18; }
+body[data-theme="dark"] .sidebar,
+body[data-theme="dark"] .history-panel {
+  background: #25251F; border-color: #414037; color: #F0EDE6;
+}
+body[data-theme="dark"] .chat-panel {
+  background: linear-gradient(145deg, #292921, #22221D 65%, #30291F); color: #F0EDE6;
+}
+body[data-theme="dark"] .welcome-card,
+body[data-theme="dark"] .fun-hero,
+body[data-theme="dark"] .fun-card,
+body[data-theme="dark"] .quiz-card {
+  background: #303029; border-color: #49473C; color: #F0EDE6;
+}
+body[data-theme="dark"] .bubble,
+body[data-theme="dark"] .composer,
+body[data-theme="dark"] .search-wrap,
+body[data-theme="dark"] .history-search,
+body[data-theme="dark"] .history-item,
+body[data-theme="dark"] .chip,
+body[data-theme="dark"] .quiz-option {
+  background: #34342C; border-color: #4B493F; color: #F0EDE6;
+}
+body[data-theme="dark"] .chat-subtitle,
+body[data-theme="dark"] .welcome-card p,
+body[data-theme="dark"] .fun-hero p,
+body[data-theme="dark"] .fun-card small,
+body[data-theme="dark"] .history-preview,
+body[data-theme="dark"] .history-date,
+body[data-theme="dark"] .composer-note,
+body[data-theme="dark"] .message-meta,
+body[data-theme="dark"] .profile { color: #B8B4A8; }
+body[data-theme="dark"] .nav-button { color: #D8D4CA; }
+body[data-theme="dark"] .nav-button:hover,
+body[data-theme="dark"] .history-item:hover,
+body[data-theme="dark"] .history-item.active { background: #414034; }
+body[data-theme="dark"] .icon-btn {
+  background: #34342C; border-color: #4B493F; color: #F0EDE6;
+}
+body[data-theme="dark"] .icon-btn:hover { background: #454438; }
+body[data-theme="dark"] .composer input,
+body[data-theme="dark"] .search-wrap input { color: #F0EDE6; }
+body[data-theme="dark"] .composer input::placeholder,
+body[data-theme="dark"] .search-wrap input::placeholder { color: #B8B4A8; }
+body[data-theme="dark"] .pro-card {
+  background: linear-gradient(135deg, #39362D, #45402F, #40332A); color: #F0EDE6;
+}
+body[data-theme="dark"] .pro-card p { color: #D1CCBF; }
+body[data-theme="dark"] .history-close,
+body[data-theme="dark"] .clear-history {
+  background: #34342C; border-color: #4B493F; color: #F0EDE6;
+}
+
+/* History panel show/hide */
+#history-panel.history-hidden { display: none !important; }
+#history-panel.history-hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="brand"><div class="brand-mark">A</div><div class="brand-name">ask<span>.</span></div></div>
+      <div class="nav-label">Workspace</div>
+      <nav class="nav-list">
+        <button class="nav-button active" data-view="chat"><span class="nav-icon">▤</span> Chat</button>
+        <button class="nav-button" data-view="fun"><span class="nav-icon">✦</span> Fun Zone</button>
+        <button class="nav-button" data-action="history"><span class="nav-icon">◷</span> History</button>
+        <button class="nav-button" data-action="new-chat"><span class="nav-icon">＋</span> New chat</button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="profile"><div class="profile-avatar">A</div><div><strong>ASK Assistant</strong><small>Local workspace</small></div></div>
+      <div class="pro-card"><h3>Make room for ideas.</h3><p>Chat, calculate, explore facts and play quick quizzes.</p><span class="local-badge">✦ Fun + tools in one place</span></div>
+    </aside>
+
+    <section class="chat-panel" aria-label="ASK workspace">
+      <header class="chat-header">
+        <div class="chat-heading">
+          <button class="icon-btn mobile-menu" id="mobile-menu" aria-label="Open navigation">☰</button>
+          <div class="mini-mark">A</div>
+          <div><div class="chat-title" id="panel-title">Chat with ASK</div><div class="chat-subtitle" id="panel-subtitle">Your helpful AI assistant</div></div>
+        </div>
+        <div class="header-actions">
+          <label class="search-wrap" aria-label="Search current conversation">⌕ <input id="chat-search" type="search" placeholder="Search chat"></label>
+          <button class="icon-btn" id="history-toggle" title="Show recent chats" aria-label="Show recent chats">◷</button>
+          <button class="icon-btn" id="theme-toggle" type="button" title="Switch to dark mode" aria-label="Switch to dark mode">🌙</button>
+          <button class="icon-btn" id="new-chat-top" title="New chat" aria-label="Start new chat">＋</button>
+        </div>
+      </header>
+
+      <main class="messages" id="messages" aria-live="polite">
+        <section class="welcome-card" id="welcome-card">
+          <div class="section-kicker">YOUR AI ASSISTANT</div>
+          <h1>Hi there! What's on your mind?</h1>
+          <p>I'm ASK. Ask a question, solve a calculation, check the weather, or take a quick break in the Fun Zone.</p>
+          <div class="prompt-chips">
+            <button class="chip" data-question="20 times 5">▦ Calculate 20 × 5</button>
+            <button class="chip" data-question="What is the weather in Bhopal?">☁ Weather</button>
+            <button class="chip" data-question="Tell me something interesting">💡 Tell me something interesting</button>
+          </div>
+        </section>
+        <div class="message-row assistant-row"><div class="avatar">A</div><div class="message-content"><div class="bubble">Hi! I'm ASK. I can help with calculations, weather, facts, jokes and riddles. What shall we explore?</div><div class="message-meta">ASK · Ready to help</div></div></div>
+      </main>
+
+      <section class="fun-view" id="fun-view" aria-label="Fun Zone">
+        <div class="fun-hero"><div class="section-kicker">A LITTLE BREAK</div><h1>Tell me something interesting ✨</h1><p>Choose an activity. Your fun can start with one tap—no Gemini call needed for the local quiz.</p></div>
+        <div class="fun-grid">
+      <button class="fun-card" data-action="random-joke">
+         <span class="fun-icon">😂</span><span>
+         <strong>Random Joke</strong>
+         <small>Har click par ek naya safe joke.</small>
+         </span>
+      </button>
+          <button class="fun-card" data-question="Tell me something interesting"><span class="fun-icon">💡</span><span><strong>Interesting fact</strong><small>Discover a surprising little fact.</small></span></button>
+          <button class="fun-card" data-action="quiz"><span class="fun-icon">🧠</span><span><strong>Multiple-choice quiz</strong><small>Choose an answer and see how you did.</small></span></button>
+          <button class="fun-card" data-question="Ask me a riddle"><span class="fun-icon">🧩</span><span><strong>Riddle</strong><small>Solve a riddle, or ask ASK for a hint.</small></span></button>
+          <button class="fun-card" data-action="surprise"><span class="fun-icon">🎲</span><span><strong>Surprise me</strong><small>Let ASK pick a fun activity for you.</small></span></button>
+          <button class="fun-card" data-question="What is the weather in Bhopal?"><span class="fun-icon">☁️</span><span><strong>Weather</strong><small>Ask the existing weather tool.</small></span></button>
+          <button class="fun-card" data-question="20 times 5"><span class="fun-icon">🧮</span><span><strong>Calculator</strong><small>Try a quick calculation with ASK.</small></span></button>
+        </div>
+
+<section class="quiz-card hidden" id="joke-card">
+  <div class="quiz-header">
+    <span class="fun-icon">😂</span>
+    <div>
+      <h2>Random Jokes</h2>
+      <p>Thoda has lo! 😄</p>
+    </div>
+  </div>
+
+  <div class="quiz-question" id="joke-text">
+    Ready for a joke?
+  </div>
+
+  <button class="primary-btn" id="next-joke" type="button">
+    Next Joke →
+  </button>
+</section>        
+
+<section class="quiz-card hidden" id="quiz-card">
+  
+  <div class="section-kicker">QUICK QUIZ · ONLINE QUESTIONS</div>
+
+  <h3>Test Your Knowledge 🧠</h3>
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin:12px 0;">
+    <label>
+      Category
+      <select id="quiz-category" class="chip">
+        <option value="18">Computer Science</option>
+        <option value="9">General Knowledge</option>
+        <option value="17">Science & Nature</option>
+        <option value="23">History</option>
+        <option value="21">Sports</option>
+      </select>
+    </label>
+
+<label>
+  Difficulty
+  <select id="quiz-difficulty" class="chip">
+    <option value="easy">Easy</option>
+    <option value="medium">Medium</option>
+    <option value="hard">Hard</option>
+  </select>
+</label>
+
+  </div>
+
+  <button class="chip" id="load-quiz" type="button">
+    Load Questions
+  </button>
+
+  <h3 id="quiz-question">Select options and load questions!</h3>
+
+  <div class="quiz-options" id="quiz-options"></div>
+
+  <div class="quiz-feedback" id="quiz-feedback" aria-live="polite"></div>
+
+  <button class="chip hidden" id="next-quiz" type="button" style="margin-top:12px">
+    Next Question →
+  </button>
+</section>
+
+      <div class="composer-area" id="composer-area">
+        <form class="composer" id="chat-form">
+          <input id="question" type="text" placeholder="Message ASK..." autocomplete="off" aria-label="Message ASK" required>
+          <button class="send-btn" id="send" type="submit" aria-label="Send message" title="Send message">➤</button>
+        </form>
+        <div class="composer-note">ASK can make mistakes. Check important information. · Your chat history stays in this browser.</div>
+      </div>
+    </section>
+
+    <aside class="history-panel" id="history-panel" aria-label="Conversation history">
+      <button type="button" id="history-close" class="history-close" aria-label="Close history">×</button>
+      <div class="history-heading"><h2>History</h2><span class="history-count" id="history-count">0 chats</span></div>
+      <input class="history-search" id="history-search" type="search" placeholder="Search history…" aria-label="Search chat history">
+      <div class="history-list" id="history-list"><div class="history-empty">Your saved chats will appear here.</div></div>
+      <div class="history-footer">Saved locally in this browser on this device.<br><button class="clear-history" id="clear-history">Clear all history</button></div>
+    </aside>
+  </div>
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = "ask_chat_history_v1";
+      const form = document.getElementById("chat-form");
+      const input = document.getElementById("question");
+      const sendButton = document.getElementById("send");
+      const messages = document.getElementById("messages");
+      const welcomeCard = document.getElementById("welcome-card");
+      const funView = document.getElementById("fun-view");
+      const composerArea = document.getElementById("composer-area");
+      const sidebar = document.getElementById("sidebar");
+      const historyList = document.getElementById("history-list");
+      const historyCount = document.getElementById("history-count");
+      const toast = document.getElementById("toast");
+      let busy = false;
+      let activeView = "chat";
+      let chats = loadChats();
+      let currentChatId = null;
+      let currentMessages = [];
+      let toastTimer = null;
+
+      function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+      function loadChats() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+          return Array.isArray(parsed) ? parsed.filter(item => item && Array.isArray(item.messages)) : [];
+        } catch { return []; }
+      }
+      function persistChats() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats.slice(0, 30))); renderHistory(); }
+        catch { showToast("Browser storage is unavailable. This chat may not persist."); }
+      }
+      function showToast(text) {
+        toast.textContent = text; toast.classList.remove("hidden"); clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.add("hidden"), 2600);
+      }
+      function scrollToBottom() { messages.scrollTop = messages.scrollHeight; }
+      function safeText(value) { return value == null ? "" : String(value); }
+      function renderMessage(role, text, meta = "", save = true) {
+        const row = document.createElement("div");
+        row.className = `message-row ${role === "user" ? "user-row" : "assistant-row"}`;
+        const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = role === "user" ? "Y" : "A";
+        const content = document.createElement("div"); content.className = "message-content";
+        const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = safeText(text);
+        content.appendChild(bubble);
+        if (meta) { const metaNode = document.createElement("div"); metaNode.className = "message-meta"; metaNode.textContent = meta; content.appendChild(metaNode); }
+        if (role === "user") row.append(content, avatar); else row.append(avatar, content);
+        messages.appendChild(row); scrollToBottom();
+        if (save) { currentMessages.push({ role, text: safeText(text), meta, time: Date.now() }); saveCurrentChat(); }
+        return { row, bubble, content };
+      }
+      function saveCurrentChat() {
+        if (!currentMessages.length) return;
+        const firstUser = currentMessages.find(message => message.role === "user");
+        const title = firstUser ? firstUser.text.slice(0, 42) : "New conversation";
+        const existingIndex = chats.findIndex(chat => chat.id === currentChatId);
+        const chat = { id: currentChatId || makeId(), title, preview: currentMessages[currentMessages.length - 1].text.slice(0, 90), updatedAt: Date.now(), messages: currentMessages };
+        currentChatId = chat.id;
+        if (existingIndex >= 0) chats[existingIndex] = chat; else chats.unshift(chat);
+        chats.sort((a, b) => b.updatedAt - a.updatedAt); chats = chats.slice(0, 30); persistChats();
+      }
+      function renderHistory(filter = "") {
+        historyList.replaceChildren();
+        const q = filter.trim().toLowerCase();
+        const filtered = chats.filter(chat => `${chat.title} ${chat.preview || ""}`.toLowerCase().includes(q));
+        historyCount.textContent = `${filtered.length}/30`;
+        if (!filtered.length) { const empty = document.createElement("div"); empty.className = "history-empty"; empty.textContent = q ? "No matching chats." : "Your saved chats will appear here."; historyList.appendChild(empty); return; }
+        filtered.forEach(chat => {
+          const button = document.createElement("button"); button.className = "history-item" + (chat.id === currentChatId ? " active" : "");
+          const title = document.createElement("span"); title.className = "history-title"; title.textContent = chat.title || "Conversation";
+          const preview = document.createElement("span"); preview.className = "history-preview"; preview.textContent = chat.preview || "Open this conversation";
+          const date = document.createElement("span"); date.className = "history-date"; date.textContent = new Date(chat.updatedAt || Date.now()).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+          button.append(title, preview, date); button.addEventListener("click", () => openChat(chat.id)); historyList.appendChild(button);
+        });
+      }
+      function openChat(id) {
+        const chat = chats.find(item => item.id === id); if (!chat) return;
+        if (busy) { showToast("Wait for ASK to finish the current response."); return; }
+        currentChatId = chat.id; currentMessages = [...chat.messages];
+        messages.replaceChildren();
+        currentMessages.forEach(message => renderMessage(message.role, message.text, message.meta || "", false));
+        setView("chat"); renderHistory(document.getElementById("history-search").value); sidebar.classList.remove("open");
+      }
+      function clearMessagesView() { messages.replaceChildren(); }
+      function startNewChat() {
+        if (busy) { showToast("Wait for ASK to finish the current response."); return; }
+        currentChatId = null; currentMessages = []; clearMessagesView();
+        const card = welcomeCard.cloneNode(true); card.id = "welcome-card"; card.classList.remove("hidden");
+        messages.appendChild(card); bindQuestionButtons(card);
+        renderMessage("assistant", "Hi! I'm ASK. What can I help you with today?", "ASK · Ready to help", false);
+        input.value = ""; setView("chat"); renderHistory(); input.focus(); sidebar.classList.remove("open");
+      }
+      function setView(view) {
+        activeView = view;
+        funView.classList.toggle("active", view === "fun");
+        messages.classList.toggle("hidden", view !== "chat");
+        composerArea.classList.toggle("hidden", view !== "chat");
+        document.getElementById("panel-title").textContent = view === "fun" ? "Fun Zone" : "Chat with ASK";
+        document.getElementById("panel-subtitle").textContent = view === "fun" ? "Choose a quick activity" : "Your helpful AI assistant";
+        document.querySelectorAll("[data-view]").forEach(button => button.classList.toggle("active", button.dataset.view === view));
+        sidebar.classList.remove("open");
+      }
+      function addTypingIndicator() {
+        const row = document.createElement("div"); row.className = "message-row assistant-row";
+        const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = "A";
+        const content = document.createElement("div"); content.className = "message-content";
+        const bubble = document.createElement("div"); bubble.className = "bubble";
+        const dots = document.createElement("span"); dots.className = "typing-dots"; dots.setAttribute("aria-label", "ASK is thinking");
+        for (let i = 0; i < 3; i++) dots.appendChild(document.createElement("span"));
+        bubble.appendChild(dots); content.appendChild(bubble); row.append(avatar, content); messages.appendChild(row); scrollToBottom(); return row;
+      }
+      function formatResult(result) {
+        if (typeof result === "string") return result;
+        if (result && typeof result === "object") {
+          if (typeof result.message === "string" && Object.keys(result).length <= 2) return result.message;
+          if (typeof result.fun_zone === "string") return result.fun_zone + (result.message ? `\n\n${result.message}` : "");
+          return Object.entries(result).map(([key, value]) => {
+            const label = key.replaceAll("_", " ").replace(/^./, c => c.toUpperCase());
+            if (key.toLowerCase() === "calculator") return `Answer: ${safeText(value)}`;
+            if (value && typeof value === "object") return `${label}:\n${Object.entries(value).map(([k, v]) => `${k.replaceAll("_", " ")}: ${safeText(v)}`).join("\n")}`;
+            return `${label}: ${safeText(value)}`;
+          }).join("\n\n");
+        }
+        return safeText(result);
+      }
+      async function sendQuestion(rawQuestion) {
+        const question = safeText(rawQuestion).trim();
+        if (!question || busy) return;
+        setView("chat"); busy = true; sendButton.disabled = true; input.disabled = true;
+        renderMessage("user", question, "You");
+        const pending = addTypingIndicator();
+        try {
+          const response = await fetch(`/ask?question=${encodeURIComponent(question)}`, { method: "GET", headers: { Accept: "application/json" } });
+          const data = await response.json();
+          if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Request failed (${response.status})`);
+          pending.remove();
+          const answer = formatResult(data.result);
+          renderMessage("assistant", answer || "I didn't receive a response. Please try again.", "ASK · Response");
+        } catch (error) {
+          pending.remove();
+          renderMessage("assistant", "I couldn't complete that request. Check that the ASK FastAPI server is running, then try again.", `Connection · ${error.message}`);
+        } finally { busy = false; sendButton.disabled = false; input.disabled = false; input.focus(); scrollToBottom(); }
+      }
+      function bindQuestionButtons(root = document) {
+        root.querySelectorAll("[data-question]").forEach(button => {
+          if (button.dataset.bound === "true") return;
+          button.dataset.bound = "true";
+          button.addEventListener("click", () => sendQuestion(button.dataset.question));
+        });
+      }
+      
+          // Local fallback questions — online quiz unavailable ho toh ye use honge
+      const fallbackQuizQuestions = [
+        {
+          q: "Which planet is known as the Red Planet?",
+          options: ["Venus", "Mars", "Jupiter", "Mercury"],
+          answer: 1,
+          fact: "Mars looks reddish because of iron-rich minerals in its soil."
+        },
+        {
+          q: "Which animal has three hearts?",
+          options: ["Dolphin", "Octopus", "Penguin", "Turtle"],
+          answer: 1,
+          fact: "An octopus has three hearts."
+        },
+        {
+          q: "What does HTML mainly describe?",
+          options: [
+            "A web page's structure",
+            "A computer's battery",
+            "Wi-Fi speed",
+            "Image resolution only"
+          ],
+          answer: 0,
+          fact: "HTML structures web content, CSS styles it, and JavaScript adds behavior."
+        },
+        {
+          q: "Which one is a Python data type?",
+          options: ["loop", "repeat", "dict", "printline"],
+          answer: 2,
+          fact: "A Python dict stores data as key-value pairs."
+        }
+      ];
+
+      let quizQuestions = [...fallbackQuizQuestions];
+      let quizIndex = 0;
+      let quizAnswered = false;
+      let quizLoading = false;
+
+      // HTML entities ko normal text mein convert karta hai
+      function decodeQuizText(text) {
+        const textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+      }
+
+      // Array ko randomly shuffle karta hai
+      function shuffleQuizOptions(options) {
+        const shuffled = [...options];
+
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        return shuffled;
+      }
+
+      function showQuiz() {
+        setView("fun");
+
+        const card = document.getElementById("quiz-card");
+        card.classList.remove("hidden");
+
+        quizIndex = 0;
+        renderQuiz();
+
+        card.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest"
+        });
+      }
+
+      // Online questions load karta hai
+      async function loadQuiz() {
+        if (quizLoading) return;
+
+        quizLoading = true;
+
+        const loadButton = document.getElementById("load-quiz");
+        const feedback = document.getElementById("quiz-feedback");
+        const question = document.getElementById("quiz-question");
+
+        loadButton.disabled = true;
+        loadButton.textContent = "Loading questions...";
+        feedback.textContent = "Online questions load ho rahe hain...";
+        question.textContent = "Please wait...";
+
+        const category = document.getElementById("quiz-category").value;
+        const difficulty = document.getElementById("quiz-difficulty").value;
+
+        const url =
+          `https://opentdb.com/api.php?amount=10&category=${category}` +
+          `&difficulty=${difficulty}&type=multiple`;
+
+        try {
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            throw new Error("Online quiz service unavailable.");
+          }
+
+          const data = await response.json();
+
+          if (data.response_code !== 0 || !data.results.length) {
+            throw new Error("No questions available for these options.");
+          }
+
+          quizQuestions = data.results.map((item) => {
+            const correctAnswer = decodeQuizText(item.correct_answer);
+
+            const allOptions = shuffleQuizOptions([
+              correctAnswer,
+              ...item.incorrect_answers.map(decodeQuizText)
+            ]);
+
+            return {
+              q: decodeQuizText(item.question),
+              options: allOptions,
+              answer: allOptions.indexOf(correctAnswer),
+              fact: `Category: ${decodeQuizText(item.category)} | Difficulty: ${item.difficulty}`
+            };
+          });
+
+          quizIndex = 0;
+          renderQuiz();
+          feedback.textContent = `✅ ${quizQuestions.length} online questions loaded!`;
+
+        } catch (error) {
+          console.error("Quiz loading error:", error);
+
+          quizQuestions = [...fallbackQuizQuestions];
+          quizIndex = 0;
+          renderQuiz();
+
+          feedback.textContent =
+            "⚠️ Online questions load nahi hue. Local questions use ho rahe hain.";
+        } finally {
+          quizLoading = false;
+          loadButton.disabled = false;
+          loadButton.textContent = "Load Questions";
+        }
+      }
+
+      function renderQuiz() {
+        const item = quizQuestions[quizIndex];
+
+        if (!item) return;
+
+        quizAnswered = false;
+
+        document.getElementById("quiz-question").textContent =
+          `${quizIndex + 1}/${quizQuestions.length}. ${item.q}`;
+
+        document.getElementById("next-quiz").classList.add("hidden");
+
+        const options = document.getElementById("quiz-options");
+        options.replaceChildren();
+
+        item.options.forEach((option, index) => {
+          const button = document.createElement("button");
+
+          button.className = "quiz-option";
+          button.textContent =
+            `${String.fromCharCode(65 + index)}. ${option}`;
+
+          button.addEventListener("click", () => {
+            if (quizAnswered) return;
+
+            quizAnswered = true;
+
+            options.querySelectorAll("button").forEach((node, i) => {
+              node.disabled = true;
+
+              if (i === item.answer) {
+                node.classList.add("correct");
+              }
+            });
+
+            if (index !== item.answer) {
+              button.classList.add("incorrect");
+            }
+
+            const feedback = document.getElementById("quiz-feedback");
+
+            feedback.textContent =
+              (index === item.answer
+                ? "Correct! 🎉 "
+                : `Not quite. Correct answer: ${item.options[item.answer]}. `) +
+              (item.fact || "");
+
+            document.getElementById("next-quiz").classList.remove("hidden");
+          });
+
+          options.appendChild(button);
+        });
+      }
+
+      document.getElementById("load-quiz").addEventListener("click", loadQuiz);
+
+      document.getElementById("next-quiz").addEventListener("click", () => {
+        if (quizIndex < quizQuestions.length - 1) {
+          quizIndex++;
+        } else {
+          quizIndex = 0;
+          document.getElementById("quiz-feedback").textContent =
+            "🎉 Quiz complete! Questions are starting again.";
+        }
+
+        renderQuiz();
+      });
+
+  const jokes = [
+  "Programmer ki favourite jagah? Foo Bar! 😂",
+  "Computer ko thand kyun lagti hai? Kyunki uske Windows khule hain! 🥶",
+  "Programmer chai kyun peeta hai? Kyunki Java ke bina kaam nahi chalta! ☕",
+  "Bug ne developer se kya kaha? Mujhe mat hatao, main feature hoon! 🐛",
+  "Computer ka favourite snack? Microchips! 😄",
+  "Programmer ki favourite music? Algo-rhythm! 🎵",
+  "Keyboard ko break kyun chahiye? Kyunki uski keys thak gayi! ⌨️",
+  "Computer doctor ke paas kyun gaya? Uska virus check karwana tha! 🖥️",
+  "Programmer ko nature kyun pasand hai? Wahan bugs real hote hain! 🌳",
+  "Java developer coffee kyun peeta hai? Java ke liye! ☕",
+  "Computer ka favourite dance? Disk-o! 💃",
+  "Programmer ka favourite place? Stack Overflow! 😂",
+  "Wi-Fi udaas kyun tha? Uska connection toot gaya! 📶",
+  "Laptop gym kyun gaya? Apni processing power badhane! 💪",
+  "Programmer late kyun aaya? Uska code compile nahi hua! 😅",
+  "Computer ko music kaise sunai deta hai? Sound card se! 🎶",
+  "Programmer ki favourite story? Ek baar ki baat hai, ek bug tha! 🐛",
+  "Mouse computer se kya bola? Tum mere control mein ho! 🖱️",
+  "Developer ko maths kyun pasand hai? Kyunki usmein bhi functions hote hain! ➗",
+  "Programmer ka favourite weather? Cloud computing! ☁️"
+];
+
+let lastJokeIndex = -1;
+
+function showJoke() {
+  const jokeCard = document.getElementById("joke-card");
+  const jokeText = document.getElementById("joke-text");
+
+  if (!jokeCard || !jokeText) return;
+
+  let index;
+
+  do {
+    index = Math.floor(Math.random() * jokes.length);
+  } while (jokes.length > 1 && index === lastJokeIndex);
+
+  lastJokeIndex = index;
+  jokeText.textContent = jokes[index];
+  jokeCard.classList.remove("hidden");
+}
+      
+      function surpriseMe() {
+        const choices = ["Tell me a joke", "Tell me something interesting", "Ask me a riddle", "20 times 5"];
+        sendQuestion(choices[Math.floor(Math.random() * choices.length)]);
+      }
+      function bindNavigation() {
+        document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => setView(button.dataset.view)));
+        document.querySelectorAll('[data-action="new-chat"]').forEach(button => button.addEventListener("click", startNewChat));
+        document.querySelectorAll('[data-action="history"]').forEach(button => button.addEventListener("click", () => {
+          setView("chat");
+          const panel = document.getElementById("history-panel");
+          if (window.matchMedia("(max-width: 1120px)").matches) panel.classList.add("mobile-open");
+          else document.querySelector(".app-shell").classList.remove("history-collapsed");
+          document.getElementById("history-search").focus();
+        }));
+        document.querySelectorAll('[data-action="quiz"]').forEach(button => button.addEventListener("click", showQuiz));
+
+       document.querySelectorAll('[data-action="random-joke"]').forEach(button => {
+  button.addEventListener("click", showJoke);
+});
+
+document.getElementById("next-joke")?.addEventListener("click", showJoke);
+
+        document.querySelectorAll('[data-action="random-joke"]').forEach(button => {
+  button.addEventListener("click", () => {
+    const jokes = [
+      "Programmer ne chai kyun banayi? Kyunki uska code brew kar raha tha! ☕😄",
+      "Computer ko thand kyun lagti hai? Kyunki uske Windows khule hain! 🪟😂",
+      "Bug computer mein aaya toh programmer ne kya kaha? Yeh toh feature nikla! 🐛😄",
+      "Python developer snake se kyun nahi darta? Kyunki woh indentation se darta hai! 🐍😂",
+      "Computer ka favourite snack kya hai? Microchips! 💻😆"
+    ];
+
+    const joke = jokes[Math.floor(Math.random() * jokes.length)];
+    showToast(joke);
+  });
+});
+
+        document.querySelectorAll('[data-action="surprise"]').forEach(button => button.addEventListener("click", surpriseMe));
+        document.getElementById("new-chat-top").addEventListener("click", startNewChat);
+        document.getElementById("history-toggle").addEventListener("click", () => {
+          const panel = document.getElementById("history-panel");
+          const shell = document.querySelector(".app-shell");
+          if (window.matchMedia("(max-width: 1120px)").matches) panel.classList.toggle("mobile-open");
+          else shell.classList.toggle("history-collapsed");
+        });
+        document.getElementById("history-close").addEventListener("click", () => {
+          document.getElementById("history-panel").classList.remove("mobile-open");
+        });
+        document.getElementById("mobile-menu").addEventListener("click", () => sidebar.classList.toggle("open"));
+      }
+      form.addEventListener("submit", event => { event.preventDefault(); const question = input.value.trim(); if (!question) return; input.value = ""; sendQuestion(question); });
+      document.getElementById("new-chat-top").addEventListener("keydown", event => { if (event.key === "Enter") startNewChat(); });
+      document.getElementById("history-search").addEventListener("input", event => renderHistory(event.target.value));
+      document.getElementById("clear-history").addEventListener("click", () => {
+        if (!chats.length) { showToast("History is already empty."); return; }
+        if (!confirm("Clear all saved chats from this browser?")) return;
+        chats = []; persistChats(); currentChatId = null; currentMessages = []; startNewChat(); showToast("Saved chat history cleared.");
+      });
+      document.getElementById("chat-search").addEventListener("input", event => {
+        const q = event.target.value.trim().toLowerCase();
+        messages.querySelectorAll(".message-row").forEach(row => { row.classList.toggle("hidden", !!q && !row.textContent.toLowerCase().includes(q)); });
+      });
+
+      // Light / Dark Mode
+      const themeToggle = document.getElementById("theme-toggle");
+      if (themeToggle) {
+        const savedTheme = localStorage.getItem("ask-theme") || "light";
+        document.body.dataset.theme = savedTheme;
+        themeToggle.textContent = savedTheme === "dark" ? "☀️" : "🌙";
+        themeToggle.addEventListener("click", () => {
+          const newTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+          document.body.dataset.theme = newTheme;
+          localStorage.setItem("ask-theme", newTheme);
+          themeToggle.textContent = newTheme === "dark" ? "☀️" : "🌙";
+          themeToggle.title = newTheme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+        });
+      }
+
+      bindNavigation(); bindQuestionButtons(); renderHistory();
+    })();
+  </script>
+</body>
+</html>

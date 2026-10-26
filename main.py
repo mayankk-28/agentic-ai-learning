@@ -3,9 +3,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import OpenAI
 import requests
+import random
 import json
 import os
- 
+
 try:
     with open("memory.json", "r") as file:
         memory = json.load(file)
@@ -31,7 +32,7 @@ client = OpenAI(
 app_name = os.getenv("APP_NAME", "Agentic AI")
 environment = os.getenv("ENVIRONMENT", "development")
 secret_key = os.getenv("MY_SECRET_KEY")
-                       
+
 print("App:", app_name)
 print("Environment:", environment)
 
@@ -198,22 +199,33 @@ def route_tool(question: str):
     return tools
 
 def llm_detect_intents(question: str):
+    q = question.lower().strip()
+
+    # Handle greetings locally without calling Gemini
+    greetings = {
+        "hi", "hello", "hey", "hii", "hiii",
+        "good morning", "good afternoon",
+        "good evening", "how are you"
+    }
+
+    if q in greetings:
+        return ["none"]
+
     try:
-        response = client.chat.completions.create(
+        response = client.with_options(
+            timeout=5.0,
+            max_retries=0
+        ).chat.completions.create(
             model="gemini-3.8-flash",
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "You are an intent classifier for an AI agent. "
-                        "Classify the user's question into one or more of these intents: "
+                        "Classify the user's question into these intents: "
                         "weather, calculator, user, none. "
                         "Return ONLY a JSON array. "
-                        'Examples: ["weather"] '
-                        '["calculator"] '
-                        '["calculator", "weather"] '
-                        '["user"] '
-                        '["none"]'
+                        'Examples: ["weather"], ["calculator"], '
+                        '["calculator", "weather"], ["user"], ["none"].'
                     ),
                 },
                 {
@@ -223,28 +235,30 @@ def llm_detect_intents(question: str):
             ],
         )
 
-        content = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content or "[]"
+        intents = json.loads(content.strip())
 
-        try:
-            intents = json.loads(content)
+        if not isinstance(intents, list):
+            return route_tool(question)
 
-            if not isinstance(intents, list):
-                intents = ["none"]
+        allowed_intents = {"weather", "calculator", "user", "none"}
+        intents = [
+            intent for intent in intents
+            if isinstance(intent, str) and intent in allowed_intents
+        ]
 
-        except json.JSONDecodeError:
-            intents = ["none"]
-
-        # If Gemini says none, check keyword routing as backup
-        if intents == ["none"]:
+        if not intents or intents == ["none"]:
             fallback_tools = route_tool(question)
 
             if fallback_tools != "none":
                 return fallback_tools
 
+            return ["none"]
+
         return intents
 
     except Exception as e:
-        print("Gemini unavailable, using fallback:", e)
+        print("Gemini unavailable or timed out; using fallback:", e)
 
         tools = route_tool(question)
 
@@ -339,6 +353,52 @@ def execute_calculation_plan(plan):
 
 
 def calculator_tool(question: str):
+    import re
+
+    q = question.lower()
+    numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", q)]
+
+    # Fast local calculation for simple questions
+    if len(numbers) >= 2:
+        result = numbers[0]
+
+        if any(word in q for word in ["minus", "subtract"]):
+            result -= numbers[1]
+
+        elif any(word in q for word in ["plus", "add"]):
+            result += numbers[1]
+
+        elif any(word in q for word in ["multiply", "multiplied", "times"]):
+            result *= numbers[1]
+
+        elif any(word in q for word in ["divide", "divided"]):
+            if numbers[1] == 0:
+                return "Cannot divide by zero."
+            result /= numbers[1]
+
+        else:
+            result = None
+
+        # Handle a third number
+        if result is not None and len(numbers) >= 3:
+            if any(word in q for word in ["multiply", "multiplied", "times"]):
+                result *= numbers[2]
+
+            elif any(word in q for word in ["plus", "add"]):
+                result += numbers[2]
+
+            elif any(word in q for word in ["minus", "subtract"]):
+                result -= numbers[2]
+
+            elif any(word in q for word in ["divide", "divided"]):
+                if numbers[2] == 0:
+                    return "Cannot divide by zero."
+                result /= numbers[2]
+
+        if result is not None:
+            return int(result) if result.is_integer() else result
+
+    # Use Gemini for complex calculations
     plan = calculator_plan(question)
 
     if plan:
@@ -347,53 +407,7 @@ def calculator_tool(question: str):
         if result is not None:
             return result
 
-    # Fallback when Gemini is unavailable
-    q = question.lower()
-
-    import re
-
-    numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", q)]
-
-    if len(numbers) < 2:
-        return "I couldn't understand the calculation."
-
-    result = numbers[0]
-
-    if "minus" in q or "subtract" in q:
-        result = result - numbers[1]
-
-    elif "plus" in q or "add" in q:
-        result = result + numbers[1]
-
-    elif "multiply" in q or "times" in q:
-        result = result * numbers[1]
-
-    elif "divide" in q or "divided by" in q:
-        if numbers[1] == 0:
-            return "Cannot divide by zero."
-        result = result / numbers[1]
-
-    else:
-        return "I couldn't understand the calculation."
-
-    if len(numbers) >= 3:
-
-        if "multiply" in q or "times" in q:
-            result = result * numbers[2]
-
-        elif "plus" in q or "add" in q:
-            result = result + numbers[2]
-
-        elif "minus" in q or "subtract" in q:
-            result = result - numbers[2]
-
-        elif "divide" in q or "divided by" in q:
-            if numbers[2] == 0:
-                return "Cannot divide by zero."
-            result = result / numbers[2]
-
-    return result
-
+    return "I couldn't understand the calculation."
 def weather_tool(question: str):
 
     url = "https://api.open-meteo.com/v1/forecast"
@@ -431,13 +445,181 @@ def ask_ai(question: str):
         "result": result
     }
 
-def simple_agent(question: str):
+def user_tool(question: str):
+    try:
+        response = requests.get(
+            "https://jsonplaceholder.typicode.com/users/1",
+            timeout=5
+        )
 
-    # Memory: save user's name
+        if response.status_code != 200:
+            return {"error": "Unable to fetch user details."}
+
+        user = response.json()
+
+        return {
+            "name": user["name"],
+            "username": user["username"],
+            "email": user["email"],
+            "city": user["address"]["city"],
+            "company": user["company"]["name"]
+        }
+
+    except requests.RequestException:
+        return {"error": "User service is currently unavailable."}
+
+def general_answer(question: str):
+
+    for attempt in range(2):
+        try:
+            response = client.with_options(
+                timeout=5.0,
+                max_retries=0
+            ).chat.completions.create(
+                model="gemini-3.8-flash",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are ASK, a helpful AI assistant. "
+                            "Answer the user's question clearly and accurately. "
+                            "Use simple language. If you are unsure, say so."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": question
+                    }
+                ]
+            )
+
+            answer = response.choices[0].message.content
+
+            if answer and answer.strip():
+                return {"message": answer.strip()}
+
+            return {
+                "message": "I couldn't generate an answer. Please try again."
+            }
+
+        except Exception as e:
+            print(f"General answer attempt {attempt + 1} failed:", e)
+
+    return {
+        "message": (
+            "I'm unable to generate an answer right now because "
+            "the AI service is unavailable. Please try again later."
+        )
+    }
+
+def fun_zone(question: str):
+    q = question.lower().strip()
+
+    # Jokes
+    if "joke" in q:
+        jokes = [
+            "😂 Teacher: Tum late kyun aaye? Student: Sir, sapne mein school ja raha tha. Raste mein traffic jam ho gaya!",
+            "😂 Why do programmers prefer dark mode? Because light attracts bugs!",
+            "😂 Teacher: Python kya hai? Student: Sir, ek programming language! Teacher: Aur asli Python? Student: Usse door hi rehna better hai!"
+        ]
+        return {"fun_zone": random.choice(jokes)}
+
+    # Interesting facts
+    if any(word in q for word in ["interesting", "fact", "facts"]):
+        facts = [
+            "🐙 An octopus has three hearts!",
+            "🪐 A day on Venus is longer than its year.",
+            "🦈 Sharks existed before trees appeared on Earth!"
+        ]
+        return {"fun_zone": random.choice(facts)}
+
+    # Interactive Riddles
+
+    if "riddle" in q:
+        riddles = [
+            {
+                "question": "🧩 What has keys but cannot open locks?",
+                "answer": "piano",
+                "hint": "🎹 You can play music on it!"
+            },
+            {
+                "question": "🧩 What has hands but cannot clap?",
+                "answer": "clock",
+                "hint": "🕒 It tells you the time!"
+            },
+            {
+                "question": "🧩 What gets wetter as it dries?",
+                "answer": "towel",
+                "hint": "🛁 You use it after a bath!"
+            }
+        ]
+
+        riddle = random.choice(riddles)
+        save_memory("current_riddle_answer", riddle["answer"])
+        save_memory("current_riddle_hint", riddle["hint"])
+
+        return {
+            "fun_zone": riddle["question"],
+            "message": "Reply with your answer!"
+        }
+
+    # Check the user's riddle answer
+    if "current_riddle_answer" in memory:
+        user_answer = q.strip(" .!?").lower()
+        correct_answer = memory["current_riddle_answer"].lower()
+
+        accepted_answers = {
+            "piano": ["piano", "a piano", "the piano"],
+            "clock": ["clock", "a clock", "the clock"],
+            "towel": ["towel", "a towel", "the towel"]
+        }
+
+        if user_answer in accepted_answers.get(correct_answer, [correct_answer]):
+            memory.pop("current_riddle_answer", None)
+            memory.pop("current_riddle_hint", None)
+
+            with open("memory.json", "w") as file:
+                json.dump(memory, file, indent=4)
+
+            return {
+                "fun_zone": "🎉 Correct! Great job!"
+            }
+
+        if any(word in q for word in ["hint", "clue", "help"]):
+            return {
+                "fun_zone": memory.get(
+                    "current_riddle_hint",
+                    "Try thinking about everyday objects!"
+                )
+            }
+
+        return {
+            "fun_zone": "❌ Not quite! Try again, or type 'hint' for a clue."
+        }
+
+    return None
+
+def simple_agent(question: str):
     q = question.lower()
 
+    # Handle greetings without calling Gemini
+    greetings = {
+        "hi", "hello", "hey", "hii", "hiii",
+        "good morning", "good afternoon",
+        "good evening"
+    }
+
+    if q.strip() in greetings:
+        return {"message": "Hello! How can I help you today?"}
+
+    # Fun Zone: jokes, facts, and riddles
+    fun_result = fun_zone(question)
+    if fun_result is not None:
+        return fun_result
+
+    # Memory: save user's name
     if "my name is " in q:
-        name = question.lower().split("my name is ")[1].strip()
+        name = question.split("my name is ", 1)[1].strip()
         save_memory("name", name.title())
         return f"Got it! I'll remember your name as {memory['name']}."
 
@@ -449,7 +631,7 @@ def simple_agent(question: str):
 
     # Memory: save user's city
     if "my city is " in q:
-        city = question.lower().split("my city is ")[1].strip()
+        city = question.split("my city is ", 1)[1].strip()
         save_memory("city", city.title())
         return f"Got it! I'll remember your city as {memory['city']}."
 
@@ -459,7 +641,15 @@ def simple_agent(question: str):
             return f"Your city is {memory['city']}."
         return "I don't know your city yet."
 
-    # Gemini intent detection
+    # Fast routing for simple calculator questions
+    tools = route_tool(question)
+
+    if tools == ["calculator"] and not any(
+        word in q for word in ["weather", "temperature", "user"]
+    ):
+        return {"calculator": calculator_tool(question)}
+
+    # Use Gemini for other requests
     intents = llm_detect_intents(question)
 
     results = {}
@@ -476,11 +666,13 @@ def simple_agent(question: str):
     if "weather" in intents:
         results["weather"] = weather_tool(question)
 
-    # No matching intent
+     # General question: no tool matched
     if not results:
-        results["message"] = f"You asked: {question}"
+        return general_answer(question)
 
     return results
+
+
 
 
 @app.get("/weather")
@@ -508,3 +700,10 @@ def get_weather(latitude , longitude):
         "temperature": data["current"]["temperature_2m"],
         "wind_speed": data["current"]["wind_speed_10m"]
     }
+
+
+from fastapi.responses import FileResponse
+
+@app.get("/chat")
+def chat_page():
+    return FileResponse("chat.html")
