@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from pathlib import Path
 from openai import OpenAI
 import requests
 import random
@@ -38,6 +40,12 @@ print("Environment:", environment)
 
 
 app = FastAPI()
+
+
+# Chat frontend
+@app.get("/chat")
+def chat():
+    return FileResponse(Path(__file__).parent / "chat.html")
 
 
 # Home
@@ -701,8 +709,6 @@ def get_weather(latitude , longitude):
         "wind_speed": data["current"]["wind_speed_10m"]
     }
 
-
-from fastapi.responses import FileResponse
 
 @app.get("/chat")
 def chat_page():
