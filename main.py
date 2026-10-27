@@ -627,8 +627,9 @@ def simple_agent(question: str):
 
     # Memory: save user's name
     if "my name is " in q:
-        name = question.split("my name is ", 1)[1].strip()
-        save_memory("name", name.title())
+        name = question[q.index("my name is ") + len("my name is "):].strip()
+        if name:
+            save_memory("name", name.title())
         return f"Got it! I'll remember your name as {memory['name']}."
 
     # Memory: retrieve user's name
