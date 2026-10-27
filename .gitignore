@@ -5,3 +5,5 @@ __pycache__/
 memory.json
 main_backup.py
 main_local_backup.py
+chat_backup_*.html
+main_debug_backup.py

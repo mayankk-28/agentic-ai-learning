@@ -48,10 +48,10 @@ def chat():
     return FileResponse(Path(__file__).parent / "chat.html")
 
 
-# Home
+# Home - Open ASK Chat directly
 @app.get("/")
 def home():
-    return {"message": "Hello Agentic AI!"}
+    return FileResponse(Path(__file__).parent / "chat.html")
 
 
 # Hello
@@ -708,8 +708,3 @@ def get_weather(latitude , longitude):
         "temperature": data["current"]["temperature_2m"],
         "wind_speed": data["current"]["wind_speed_10m"]
     }
-
-
-@app.get("/chat")
-def chat_page():
-    return FileResponse("chat.html")
